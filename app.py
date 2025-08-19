@@ -90,7 +90,7 @@ def login_user(username, password):
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
     return c.fetchone()
 
-# ------------------ Styles ------------------
+# # ------------------ Styles ------------
 def add_global_styles():
     st.markdown(
         """
@@ -121,6 +121,17 @@ def add_global_styles():
         .chat-bubble { padding: 12px 16px; margin: 8px 0; border-radius: 14px; max-width: 75%; }
         .user-bubble { background: #d1f5ff; margin-left: auto; border: 1px solid #a3e4ff; }
         .bot-bubble { background: #e6ffe6; margin-right: auto; border: 1px solid #b3ffb3; }
+
+        /* ✅ Force white background for success/error/info/warning messages */
+        .stAlert {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border: 1px solid #ccc !important;
+            border-radius: 10px !important;
+            padding: 12px !important;
+            font-weight: 500 !important;
+        }
+       
         </style>
         """,
         unsafe_allow_html=True
