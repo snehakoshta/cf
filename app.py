@@ -1,16 +1,35 @@
 import pickle
+import joblib
 import numpy as np
 import streamlit as st
 import difflib
 import sqlite3
+import os
 from datetime import datetime
 
-# ------------------ Load Models ------------------
-with open('decision_tree_model_crop.pkl', 'rb') as file:
-    rf_model_crop = pickle.load(file)
+# ------------------ Safe Model Loader ------------------
+def load_model(filename):
+    try:
+        model_path = os.path.join(os.path.dirname(__file__), filename)
 
-with open('decision_tree_model_fertilizer.pkl', 'rb') as file:
-    rf_model_fertilizer = pickle.load(file)
+        # पहले joblib से load करने की कोशिश
+        return joblib.load(model_path)
+
+    except FileNotFoundError:
+        st.error(f"❌ Model file '{filename}' not found. Please add it in your repo.")
+        return None
+    except Exception as e:
+        try:
+            # fallback → pickle से load करो
+            with open(model_path, "rb") as file:
+                return pickle.load(file)
+        except Exception as e2:
+            st.error(f"⚠️ Error loading model '{filename}': {e2}")
+            return None
+
+# ------------------ Load Models ------------------
+rf_model_crop = load_model("decision_tree_model_crop.pkl")
+rf_model_fertilizer = load_model("decision_tree_model_fertilizer.pkl")
 
 # ------------------ Database Setup ------------------
 conn = sqlite3.connect("orders.db", check_same_thread=False)
@@ -127,11 +146,15 @@ knowledge_base = {
 }
 
 def recommend_crop(ph, humidity, N, P, K, temperature, rainfall):
+    if rf_model_crop is None:
+        return "Model not loaded"
     features = np.array([[N, P, K, temperature, humidity, ph, rainfall]])
     prediction = rf_model_crop.predict(features)
     return prediction[0]
 
 def recommend_fertilizer(temperature, humidity, moisture, soil_type, crop_type, N, P, K):
+    if rf_model_fertilizer is None:
+        return "Model not loaded"
     soil_mapping = {'Loamy': 0, 'Sandy': 1, 'Clayey': 2}
     crop_mapping = {'Wheat': 0, 'Rice': 1, 'Maize': 2, 'Barley': 3}
     features = np.array([[temperature, humidity, moisture,
@@ -142,7 +165,6 @@ def recommend_fertilizer(temperature, humidity, moisture, soil_type, crop_type, 
     return prediction[0]
 
 def chatbot_response(user_input):
-    import difflib
     user_input_lower = user_input.lower()
     best_match = difflib.get_close_matches(user_input_lower, knowledge_base.keys(), n=1, cutoff=0.5)
     if best_match:
@@ -161,7 +183,7 @@ if "username" not in st.session_state:
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    st.header("🔑 Login / Register")
+    st.header(" Login / Register")
 
     choice = st.radio("Choose Action", ["Login", "Register"])
     username = st.text_input("👤 Username")
@@ -282,30 +304,4 @@ else:
                     if st.button("❌ Delete", key=f"del_{oid}"):
                         delete_order(oid)
                         st.warning(f"❌ Order {i} deleted")
-                        st.error(
-                            """
-                            <div style="
-                                background: white;
-                                color: #d32f2f;
-                                font-weight: bold;
-                                border-radius: 10px;
-                                padding: 12px;
-                                animation: shake 0.4s;
-                                border: 2px solid #d32f2f;
-                                box-shadow: 0 2px 8px rgba(211,47,47,0.08);
-                            ">
-                                ❌ Invalid username or password
-                            </div>
-                            <style>
-                            @keyframes shake {
-                                0% { transform: translateX(0); }
-                                20% { transform: translateX(-8px); }
-                                40% { transform: translateX(8px); }
-                                60% { transform: translateX(-8px); }
-                                80% { transform: translateX(8px); }
-                                100% { transform: translateX(0); }
-                            }
-                            </style>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                        st.rerun()
